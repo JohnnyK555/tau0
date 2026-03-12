@@ -13,7 +13,7 @@ export interface Question {
   explanation: string;
 }
 
-export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', count: number = 3, topic?: string): Promise<Question[]> {
+export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', count: number = 5, topic?: string): Promise<Question[]> {
   const subjectName = subject === 'cesky_jazyk' ? 'Český jazyk' : 'Matematika';
   let prompt = `Vygeneruj ${count} typických testových otázek z předmětu ${subjectName} pro přípravu na jednotné přijímací zkoušky na střední školy v ČR (9. třída, formát Cermat).`;
   
@@ -26,7 +26,7 @@ export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', c
   prompt += `\nU uzavřených otázek (multiple_choice) uveď 4 možnosti (A, B, C, D). U otevřených otázek (open_ended) nech pole options prázdné. Odpověď musí být přesná hodnota nebo text správné možnosti.`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
+    model: "gemini-1.5-flash",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
