@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { generateQuestions, Question } from '../services/gemini';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, CheckCircle2, XCircle, Loader2, RefreshCw, StickyNote, Pencil, ChevronRight } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, XCircle, Loader2, RefreshCw, StickyNote, Pencil, ChevronRight, X } from 'lucide-react';
 import { Notes } from './Notes';
 import { DrawingCanvas } from './DrawingCanvas';
 
@@ -129,16 +129,25 @@ export function PracticeSession({ subject, topic, onBack }: PracticeSessionProps
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-100">
-      {/* Left Sidebar: Notes */}
+      {/* Floating Notes */}
       <AnimatePresence>
         {showNotes && (
           <motion.div
-            initial={{ x: -300 }}
-            animate={{ x: 0 }}
-            exit={{ x: -300 }}
-            className="w-80 h-full p-4 border-r border-slate-200 bg-white z-40"
+            drag
+            dragMomentum={false}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="fixed top-24 left-8 w-80 h-[500px] z-50 flex flex-col cursor-move"
           >
-            <Notes />
+            <div className="flex justify-end mb-2">
+              <button onClick={() => setShowNotes(false)} className="p-2 bg-white rounded-full shadow-md hover:bg-slate-100 text-slate-500">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="flex-1 cursor-auto" onPointerDownCapture={(e) => e.stopPropagation()}>
+              <Notes />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -189,9 +198,9 @@ export function PracticeSession({ subject, topic, onBack }: PracticeSessionProps
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden"
+                className="overflow-hidden"
               >
-                <div className="p-8 md:p-10">
+                <div className="py-8 md:py-10">
                   <div className="flex items-center gap-3 mb-6">
                     <span className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-semibold text-sm">
                       {currentIndex + 1}
@@ -330,30 +339,27 @@ export function PracticeSession({ subject, topic, onBack }: PracticeSessionProps
         </div>
       </div>
 
-      {/* Right Sidebar: Drawing */}
+      {/* Floating Drawing */}
       <AnimatePresence>
         {showDrawing && (
           <motion.div
-            initial={{ x: 500 }}
-            animate={{ x: 0 }}
-            exit={{ x: 500 }}
-            className="w-[500px] h-full p-4 border-l border-slate-200 bg-white z-40 flex flex-col"
+            drag
+            dragMomentum={false}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="fixed top-24 right-8 w-[600px] h-[500px] z-50 flex flex-col cursor-move"
             ref={drawingContainerRef}
           >
-            <div className="flex items-center justify-between mb-2 px-2">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <Pencil size={18} className="text-blue-600" />
-                Rýsovací prkno
-              </h3>
-              <button 
-                onClick={() => setShowDrawing(false)}
-                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400"
-              >
-                <ChevronRight size={20} />
+            <div className="flex justify-end mb-2">
+              <button onClick={() => setShowDrawing(false)} className="p-2 bg-white rounded-full shadow-md hover:bg-slate-100 text-slate-500">
+                <X size={20} />
               </button>
             </div>
-            <div className="flex-1">
-              <DrawingCanvas width={canvasSize.width - 32} height={canvasSize.height} />
+            <div className="flex-1 cursor-auto" onPointerDownCapture={(e) => e.stopPropagation()}>
+              {canvasSize.width > 0 && (
+                <DrawingCanvas width={canvasSize.width} height={canvasSize.height} />
+              )}
             </div>
           </motion.div>
         )}

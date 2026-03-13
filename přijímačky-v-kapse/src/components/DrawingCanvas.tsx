@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Stage, Layer, Line, Image as KonvaImage, Group, Rect, Path, Text, Circle } from 'react-konva';
-import { Eraser, Pencil, Ruler as RulerIcon, Triangle, Circle as CircleIcon, Trash2, Printer, Move, RotateCw, Palette } from 'lucide-react';
+import { Eraser, Pencil, Ruler as RulerIcon, Triangle, Circle as CircleIcon, Trash2, Printer, Move, RotateCw, Palette, Minus, ZoomIn, ZoomOut, Maximize, MousePointer2 } from 'lucide-react';
 
 interface DrawingCanvasProps {
   width: number;
@@ -10,7 +10,7 @@ interface DrawingCanvasProps {
 const COLORS = ['#000000', '#ef4444', '#3b82f6', '#10b981', '#f59e0b'];
 
 export function DrawingCanvas({ width, height }: DrawingCanvasProps) {
-  const [tool, setTool] = useState<'pencil' | 'eraser'>('pencil');
+  const [tool, setTool] = useState<'pencil' | 'eraser' | 'line' | 'circle' | 'pointer'>('pointer');
   const [lines, setLines] = useState<any[]>([]);
   const [color, setColor] = useState(COLORS[0]);
   const isDrawing = useRef(false);
@@ -22,24 +22,172 @@ export function DrawingCanvas({ width, height }: DrawingCanvasProps) {
   const [showProtractor, setShowProtractor] = useState(false);
   const [showCompass, setShowCompass] = useState(false);
 
+  const [rulerState, setRulerState] = useState({ x: width / 2 - 150, y: height / 2 - 20, rotation: 0 });
+  const [triangleState, setTriangleState] = useState({ x: width / 2 - 100, y: height / 2 - 50, rotation: 0 });
+  const [protractorState, setProtractorState] = useState({ x: width / 2, y: height / 2, rotation: 0 });
+  const [compassState, setCompassState] = useState({ x: width / 2, y: height / 2 - 40 });
+
+  const [scale, setScale] = useState(1);
+  const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
+  const [mousePos, setMousePos] = useState<{x: number, y: number} | null>(null);
+
+  // Update tool positions if width/height change significantly (e.g. on mount)
+  useEffect(() => {
+    if (width > 0 && height > 0 && rulerState.x === -150) {
+      setRulerState(s => ({ ...s, x: width / 2 - 150, y: height / 2 - 20 }));
+      setTriangleState(s => ({ ...s, x: width / 2 - 100, y: height / 2 - 50 }));
+      setProtractorState(s => ({ ...s, x: width / 2, y: height / 2 }));
+      setCompassState(s => ({ ...s, x: width / 2, y: height / 2 - 40 }));
+    }
+  }, [width, height]);
+
+  const handleZoomIn = () => {
+    const newScale = scale * 1.2;
+    const center = { x: width / 2, y: height / 2 };
+    const relatedTo = { x: (center.x - stagePos.x) / scale, y: (center.y - stagePos.y) / scale };
+    setScale(newScale);
+    setStagePos({
+      x: center.x - relatedTo.x * newScale,
+      y: center.y - relatedTo.y * newScale
+    });
+  };
+
+  const handleZoomOut = () => {
+    const newScale = scale / 1.2;
+    const center = { x: width / 2, y: height / 2 };
+    const relatedTo = { x: (center.x - stagePos.x) / scale, y: (center.y - stagePos.y) / scale };
+    setScale(newScale);
+    setStagePos({
+      x: center.x - relatedTo.x * newScale,
+      y: center.y - relatedTo.y * newScale
+    });
+  };
+
+  const handleResetZoom = () => {
+    setScale(1);
+    setStagePos({ x: 0, y: 0 });
+  };
+
+  const getRelativePointerPosition = (stage: any) => {
+    const pointerPosition = stage.getPointerPosition();
+    if (!pointerPosition) return { x: 0, y: 0 };
+    return {
+      x: (pointerPosition.x - stage.x()) / stage.scaleX(),
+      y: (pointerPosition.y - stage.y()) / stage.scaleY()
+    };
+  };
+
+  const getSnappedPoint = (x: number, y: number) => {
+    let snappedX = x;
+    let snappedY = y;
+    let minDistance = 20; // Snap threshold
+
+    if (showRuler) {
+      const rad = rulerState.rotation * Math.PI / 180;
+      const cos = Math.cos(-rad);
+      const sin = Math.sin(-rad);
+      const dx = x - rulerState.x;
+      const dy = y - rulerState.y;
+      
+      const localX = dx * cos - dy * sin;
+      const localY = dx * sin + dy * cos;
+
+      if (localX >= -20 && localX <= 320) {
+        if (Math.abs(localY) < minDistance) {
+          const snapLocalY = 0;
+          snappedX = localX * Math.cos(rad) - snapLocalY * Math.sin(rad) + rulerState.x;
+          snappedY = localX * Math.sin(rad) + snapLocalY * Math.cos(rad) + rulerState.y;
+          minDistance = Math.abs(localY);
+        } else if (Math.abs(localY - 40) < minDistance) {
+          const snapLocalY = 40;
+          snappedX = localX * Math.cos(rad) - snapLocalY * Math.sin(rad) + rulerState.x;
+          snappedY = localX * Math.sin(rad) + snapLocalY * Math.cos(rad) + rulerState.y;
+          minDistance = Math.abs(localY - 40);
+        }
+      }
+    }
+
+    if (showTriangle) {
+      const rad = triangleState.rotation * Math.PI / 180;
+      const cos = Math.cos(-rad);
+      const sin = Math.sin(-rad);
+      const dx = x - triangleState.x;
+      const dy = y - triangleState.y;
+      
+      const localX = dx * cos - dy * sin;
+      const localY = dx * sin + dy * cos;
+
+      // Edge 1: Bottom (0,0) to (200,0)
+      if (localX >= -20 && localX <= 220 && Math.abs(localY) < minDistance) {
+        const snapLocalY = 0;
+        snappedX = localX * Math.cos(rad) - snapLocalY * Math.sin(rad) + triangleState.x;
+        snappedY = localX * Math.sin(rad) + snapLocalY * Math.cos(rad) + triangleState.y;
+        minDistance = Math.abs(localY);
+      }
+      
+      // Edge 2: Left (0,0) to (100,100) -> y = x
+      const dist2 = Math.abs(localX - localY) / Math.SQRT2;
+      if (localX >= -10 && localX <= 110 && dist2 < minDistance) {
+        const proj = (localX + localY) / 2;
+        snappedX = proj * Math.cos(rad) - proj * Math.sin(rad) + triangleState.x;
+        snappedY = proj * Math.sin(rad) + proj * Math.cos(rad) + triangleState.y;
+        minDistance = dist2;
+      }
+
+      // Edge 3: Right (200,0) to (100,100) -> x + y = 200
+      const dist3 = Math.abs(localX + localY - 200) / Math.SQRT2;
+      if (localX >= 90 && localX <= 210 && dist3 < minDistance) {
+        const t = (localX + localY - 200) / 2;
+        const projX = localX - t;
+        const projY = localY - t;
+        snappedX = projX * Math.cos(rad) - projY * Math.sin(rad) + triangleState.x;
+        snappedY = projX * Math.sin(rad) + projY * Math.cos(rad) + triangleState.y;
+        minDistance = dist3;
+      }
+    }
+
+    return { x: snappedX, y: snappedY };
+  };
+
   const handleMouseDown = (e: any) => {
+    if (tool === 'pointer') return;
+
     // If clicking on a tool, don't draw
-    if (e.target !== e.target.getStage()) return;
+    const target = e.target;
+    if (target.name() !== 'background' && target !== target.getStage()) return;
 
     isDrawing.current = true;
-    const pos = e.target.getStage().getPointerPosition();
-    setLines([...lines, { tool, color, points: [pos.x, pos.y] }]);
+    const pos = getRelativePointerPosition(target.getStage());
+    const snapped = getSnappedPoint(pos.x, pos.y);
+    if (tool === 'line') {
+      setLines([...lines, { tool, color, points: [snapped.x, snapped.y, snapped.x, snapped.y] }]);
+    } else if (tool === 'circle') {
+      setLines([...lines, { tool, color, x: snapped.x, y: snapped.y, radius: 0 }]);
+    } else {
+      setLines([...lines, { tool, color, points: [snapped.x, snapped.y] }]);
+    }
   };
 
   const handleMouseMove = (e: any) => {
-    if (!isDrawing.current) return;
     const stage = e.target.getStage();
-    const point = stage.getPointerPosition();
+    const pos = getRelativePointerPosition(stage);
+    setMousePos(pos);
+
+    if (!isDrawing.current) return;
+    const snapped = getSnappedPoint(pos.x, pos.y);
     setLines(prevLines => {
       if (prevLines.length === 0) return prevLines;
       const newLines = [...prevLines];
       const lastLine = { ...newLines[newLines.length - 1] };
-      lastLine.points = lastLine.points.concat([point.x, point.y]);
+      if (lastLine.tool === 'line') {
+        lastLine.points = [lastLine.points[0], lastLine.points[1], snapped.x, snapped.y];
+      } else if (lastLine.tool === 'circle') {
+        const dx = snapped.x - lastLine.x;
+        const dy = snapped.y - lastLine.y;
+        lastLine.radius = Math.sqrt(dx * dx + dy * dy);
+      } else {
+        lastLine.points = lastLine.points.concat([snapped.x, snapped.y]);
+      }
       newLines[newLines.length - 1] = lastLine;
       return newLines;
     });
@@ -47,6 +195,34 @@ export function DrawingCanvas({ width, height }: DrawingCanvasProps) {
 
   const handleMouseUp = () => {
     isDrawing.current = false;
+  };
+
+  const handleMouseLeave = () => {
+    setMousePos(null);
+    isDrawing.current = false;
+  };
+
+  const handleWheel = (e: any) => {
+    e.evt.preventDefault();
+    const scaleBy = 1.1;
+    const stage = e.target.getStage();
+    const oldScale = stage.scaleX();
+    const pointer = stage.getPointerPosition();
+
+    if (!pointer) return;
+
+    const mousePointTo = {
+      x: (pointer.x - stage.x()) / oldScale,
+      y: (pointer.y - stage.y()) / oldScale,
+    };
+
+    const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+
+    setScale(newScale);
+    setStagePos({
+      x: pointer.x - mousePointTo.x * newScale,
+      y: pointer.y - mousePointTo.y * newScale,
+    });
   };
 
   const handlePrint = () => {
@@ -82,11 +258,33 @@ export function DrawingCanvas({ width, height }: DrawingCanvasProps) {
       <div className="p-2 bg-slate-50 border-b border-slate-200 flex flex-wrap gap-2 items-center justify-between">
         <div className="flex gap-1 items-center">
           <button
+            onClick={() => setTool('pointer')}
+            className={`p-2 rounded-lg transition-colors ${tool === 'pointer' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-200 text-slate-600'}`}
+            title="Kurzor (přesun)"
+          >
+            <MousePointer2 size={18} />
+          </button>
+          <div className="w-px h-6 bg-slate-300 mx-1" />
+          <button
             onClick={() => setTool('pencil')}
             className={`p-2 rounded-lg transition-colors ${tool === 'pencil' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-200 text-slate-600'}`}
             title="Tužka"
           >
             <Pencil size={18} />
+          </button>
+          <button
+            onClick={() => setTool('line')}
+            className={`p-2 rounded-lg transition-colors ${tool === 'line' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-200 text-slate-600'}`}
+            title="Rovná čára"
+          >
+            <Minus size={18} />
+          </button>
+          <button
+            onClick={() => setTool('circle')}
+            className={`p-2 rounded-lg transition-colors ${tool === 'circle' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-200 text-slate-600'}`}
+            title="Kružnice"
+          >
+            <CircleIcon size={18} />
           </button>
           <button
             onClick={() => setTool('eraser')}
@@ -137,6 +335,28 @@ export function DrawingCanvas({ width, height }: DrawingCanvasProps) {
           >
             <CircleIcon size={18} />
           </button>
+          <div className="w-px h-6 bg-slate-300 mx-1" />
+          <button
+            onClick={handleZoomOut}
+            className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors"
+            title="Oddálit"
+          >
+            <ZoomOut size={18} />
+          </button>
+          <button
+            onClick={handleResetZoom}
+            className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors text-xs font-medium w-12"
+            title="Resetovat přiblížení"
+          >
+            {Math.round(scale * 100)}%
+          </button>
+          <button
+            onClick={handleZoomIn}
+            className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors"
+            title="Přiblížit"
+          >
+            <ZoomIn size={18} />
+          </button>
         </div>
 
         <div className="flex gap-1">
@@ -161,46 +381,136 @@ export function DrawingCanvas({ width, height }: DrawingCanvasProps) {
       </div>
 
       {/* Canvas Area */}
-      <div className="flex-1 bg-slate-50 relative overflow-hidden cursor-crosshair">
+      <div className={`flex-1 bg-slate-50 relative overflow-hidden ${tool === 'pointer' ? 'cursor-move' : 'cursor-crosshair'}`}>
         <Stage
           width={width}
           height={height}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+          onWheel={handleWheel}
           ref={stageRef}
+          scaleX={scale}
+          scaleY={scale}
+          x={stagePos.x}
+          y={stagePos.y}
+          draggable={tool === 'pointer'}
+          onDragEnd={(e) => {
+            if (e.target === stageRef.current) {
+              setStagePos({ x: e.target.x(), y: e.target.y() });
+            }
+          }}
         >
           <Layer>
             {/* Grid Background */}
-            <Rect width={width} height={height} fill="#ffffff" />
-            {Array.from({ length: Math.ceil(width / 20) }).map((_, i) => (
-              <Line key={`v-${i}`} points={[i * 20, 0, i * 20, height]} stroke="#f1f5f9" strokeWidth={1} />
+            <Rect x={-2000} y={-2000} width={6000} height={6000} fill="#ffffff" name="background" />
+            {Array.from({ length: 300 }).map((_, i) => (
+              <Line key={`v-${i}`} points={[-2000 + i * 20, -2000, -2000 + i * 20, 4000]} stroke="#f1f5f9" strokeWidth={1} listening={false} />
             ))}
-            {Array.from({ length: Math.ceil(height / 20) }).map((_, i) => (
-              <Line key={`h-${i}`} points={[0, i * 20, width, i * 20]} stroke="#f1f5f9" strokeWidth={1} />
+            {Array.from({ length: 300 }).map((_, i) => (
+              <Line key={`h-${i}`} points={[-2000, -2000 + i * 20, 4000, -2000 + i * 20]} stroke="#f1f5f9" strokeWidth={1} listening={false} />
             ))}
+          </Layer>
 
+          <Layer>
             {/* Drawing Lines */}
-            {lines.map((line, i) => (
-              <Line
-                key={i}
-                points={line.points}
-                stroke={line.color}
-                strokeWidth={line.tool === 'eraser' ? 20 : 2}
-                tension={0.5}
-                lineCap="round"
-                lineJoin="round"
-                globalCompositeOperation={
-                  line.tool === 'eraser' ? 'destination-out' : 'source-over'
-                }
-              />
-            ))}
+            {lines.map((line, i) => {
+              if (line.tool === 'circle') {
+                return (
+                  <Group
+                    key={i}
+                    x={line.groupX || 0}
+                    y={line.groupY || 0}
+                    draggable={tool === 'pointer'}
+                    onDragEnd={(e) => {
+                      if (e.target === e.currentTarget) {
+                        const newLines = [...lines];
+                        newLines[i] = { ...newLines[i], groupX: e.target.x(), groupY: e.target.y() };
+                        setLines(newLines);
+                      }
+                    }}
+                  >
+                    <Circle
+                      x={line.x}
+                      y={line.y}
+                      radius={line.radius}
+                      stroke={line.color}
+                      strokeWidth={2}
+                      listening={tool === 'pointer'}
+                    />
+                    {isDrawing.current && i === lines.length - 1 && (
+                      <Text
+                        x={line.x + line.radius + 10}
+                        y={line.y}
+                        text={`r = ${(line.radius / 10).toFixed(1)} cm`}
+                        fill={line.color}
+                        fontSize={14}
+                        listening={false}
+                      />
+                    )}
+                  </Group>
+                );
+              }
+              return (
+                <Group
+                  key={i}
+                  x={line.groupX || 0}
+                  y={line.groupY || 0}
+                  draggable={tool === 'pointer'}
+                  onDragEnd={(e) => {
+                    if (e.target === e.currentTarget) {
+                      const newLines = [...lines];
+                      newLines[i] = { ...newLines[i], groupX: e.target.x(), groupY: e.target.y() };
+                      setLines(newLines);
+                    }
+                  }}
+                >
+                  <Line
+                    points={line.points}
+                    stroke={line.color}
+                    strokeWidth={line.tool === 'eraser' ? 20 : 2}
+                    tension={line.tool === 'line' ? 0 : 0.5}
+                    lineCap="round"
+                    lineJoin="round"
+                    listening={tool === 'pointer'}
+                    globalCompositeOperation={
+                      line.tool === 'eraser' ? 'destination-out' : 'source-over'
+                    }
+                  />
+                  {line.tool === 'line' && isDrawing.current && i === lines.length - 1 && (
+                    <Text
+                      x={line.points[2] + 10}
+                      y={line.points[3] + 10}
+                      text={`${(Math.sqrt(Math.pow(line.points[2] - line.points[0], 2) + Math.pow(line.points[3] - line.points[1], 2)) / 10).toFixed(1)} cm`}
+                      fill={line.color}
+                      fontSize={14}
+                      listening={false}
+                    />
+                  )}
+                </Group>
+              );
+            })}
+          </Layer>
 
+          <Layer>
             {/* Interactive Tools */}
-            {showRuler && <RulerTool x={100} y={100} />}
-            {showTriangle && <TriangleTool x={200} y={200} />}
-            {showProtractor && <ProtractorTool x={300} y={300} />}
-            {showCompass && <CompassTool x={400} y={400} />}
+            {showRuler && <RulerTool state={rulerState} onChange={setRulerState} />}
+            {showTriangle && <TriangleTool state={triangleState} onChange={setTriangleState} />}
+            {showProtractor && <ProtractorTool state={protractorState} onChange={setProtractorState} />}
+            {showCompass && <CompassTool state={compassState} onChange={setCompassState} />}
+            
+            {/* Eraser Cursor */}
+            {tool === 'eraser' && mousePos && (
+              <Circle
+                x={mousePos.x}
+                y={mousePos.y}
+                radius={10}
+                stroke="#000"
+                strokeWidth={1}
+                listening={false}
+              />
+            )}
           </Layer>
         </Stage>
       </div>
@@ -209,10 +519,19 @@ export function DrawingCanvas({ width, height }: DrawingCanvasProps) {
 }
 
 // Helper components for tools
-function RulerTool({ x, y }: { x: number, y: number }) {
-  const [rotation, setRotation] = useState(0);
+function RulerTool({ state, onChange }: { state: any, onChange: (s: any) => void }) {
   return (
-    <Group x={x} y={y} rotation={rotation} draggable>
+    <Group 
+      x={state.x} 
+      y={state.y} 
+      rotation={state.rotation} 
+      draggable
+      onDragMove={(e) => {
+        if (e.target === e.currentTarget) {
+          onChange({ ...state, x: e.target.x(), y: e.target.y() });
+        }
+      }}
+    >
       <Rect
         width={300}
         height={40}
@@ -243,7 +562,7 @@ function RulerTool({ x, y }: { x: number, y: number }) {
       <Text
         x={150}
         y={22}
-        text={`${Math.round(rotation)}°`}
+        text={`${Math.round(state.rotation)}°`}
         fontSize={12}
         fill="#b45309"
         fontStyle="bold"
@@ -259,7 +578,7 @@ function RulerTool({ x, y }: { x: number, y: number }) {
           const pos = e.target.absolutePosition();
           const parentPos = e.target.getParent().absolutePosition();
           const angle = Math.atan2(pos.y - parentPos.y, pos.x - parentPos.x) * 180 / Math.PI;
-          setRotation(angle);
+          onChange({ ...state, rotation: angle });
           e.target.x(310);
           e.target.y(20);
         }}
@@ -268,10 +587,19 @@ function RulerTool({ x, y }: { x: number, y: number }) {
   );
 }
 
-function TriangleTool({ x, y }: { x: number, y: number }) {
-  const [rotation, setRotation] = useState(0);
+function TriangleTool({ state, onChange }: { state: any, onChange: (s: any) => void }) {
   return (
-    <Group x={x} y={y} rotation={rotation} draggable>
+    <Group 
+      x={state.x} 
+      y={state.y} 
+      rotation={state.rotation} 
+      draggable
+      onDragMove={(e) => {
+        if (e.target === e.currentTarget) {
+          onChange({ ...state, x: e.target.x(), y: e.target.y() });
+        }
+      }}
+    >
       <Line
         points={[0, 0, 200, 0, 100, 100]}
         closed
@@ -284,7 +612,7 @@ function TriangleTool({ x, y }: { x: number, y: number }) {
       <Text
         x={85}
         y={40}
-        text={`${Math.round(rotation)}°`}
+        text={`${Math.round(state.rotation)}°`}
         fontSize={12}
         fill="#b45309"
         fontStyle="bold"
@@ -300,7 +628,7 @@ function TriangleTool({ x, y }: { x: number, y: number }) {
           const pos = e.target.absolutePosition();
           const parentPos = e.target.getParent().absolutePosition();
           const angle = Math.atan2(pos.y - parentPos.y, pos.x - parentPos.x) * 180 / Math.PI - 90;
-          setRotation(angle);
+          onChange({ ...state, rotation: angle });
           e.target.x(100);
           e.target.y(110);
         }}
@@ -309,10 +637,19 @@ function TriangleTool({ x, y }: { x: number, y: number }) {
   );
 }
 
-function ProtractorTool({ x, y }: { x: number, y: number }) {
-  const [rotation, setRotation] = useState(0);
+function ProtractorTool({ state, onChange }: { state: any, onChange: (s: any) => void }) {
   return (
-    <Group x={x} y={y} rotation={rotation} draggable>
+    <Group 
+      x={state.x} 
+      y={state.y} 
+      rotation={state.rotation} 
+      draggable
+      onDragMove={(e) => {
+        if (e.target === e.currentTarget) {
+          onChange({ ...state, x: e.target.x(), y: e.target.y() });
+        }
+      }}
+    >
       <Path
         data="M -100 0 A 100 100 0 0 1 100 0 L -100 0"
         fill="rgba(255, 251, 235, 0.7)"
@@ -339,7 +676,7 @@ function ProtractorTool({ x, y }: { x: number, y: number }) {
       <Text
         x={-15}
         y={-30}
-        text={`${Math.round(rotation)}°`}
+        text={`${Math.round(state.rotation)}°`}
         fontSize={14}
         fill="#b45309"
         fontStyle="bold"
@@ -355,7 +692,7 @@ function ProtractorTool({ x, y }: { x: number, y: number }) {
           const pos = e.target.absolutePosition();
           const parentPos = e.target.getParent().absolutePosition();
           const angle = Math.atan2(pos.y - parentPos.y, pos.x - parentPos.x) * 180 / Math.PI + 90;
-          setRotation(angle);
+          onChange({ ...state, rotation: angle });
           e.target.x(0);
           e.target.y(-110);
         }}
@@ -364,10 +701,19 @@ function ProtractorTool({ x, y }: { x: number, y: number }) {
   );
 }
 
-function CompassTool({ x, y }: { x: number, y: number }) {
+function CompassTool({ state, onChange }: { state: any, onChange: (s: any) => void }) {
   const [radius, setRadius] = useState(50);
   return (
-    <Group x={x} y={y} draggable>
+    <Group 
+      x={state.x} 
+      y={state.y} 
+      draggable
+      onDragMove={(e) => {
+        if (e.target === e.currentTarget) {
+          onChange({ ...state, x: e.target.x(), y: e.target.y() });
+        }
+      }}
+    >
       {/* Compass body */}
       <Line points={[0, 0, -10, 80]} stroke="#64748b" strokeWidth={3} />
       <Line points={[0, 0, radius, 80]} stroke="#64748b" strokeWidth={3} />
