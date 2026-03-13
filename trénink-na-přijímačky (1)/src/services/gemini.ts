@@ -12,54 +12,48 @@ export interface Question {
 }
 
 export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', count: number = 5, topic?: string): Promise<Question[]> {
-  console.log("🚀 FUNKCE GENERATE SE SPUSTILA!"); 
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  console.log("🔑 API klíč v aplikaci:", apiKey ? "ANO (mám ho)" : "NE (je prázdný)");
+  console.log("🚀 FUNKCE SPUŠTĚNA");
   
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  console.log("🔑 Klíč přítomen:", !!apiKey);
+
   if (!apiKey) {
-    console.error("Chybí API klíč!");
+    console.error("❌ Kritická chyba: API klíč není v Netlify nastaven!");
     return [];
   }
 
-  // TADY BYLA CHYBA - opraveno na GoogleGenAI
-  const genAI = new GoogleGenAI(apiKey);
-  const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash",
-    generationConfig: {
-      responseMimeType: "application/json",
-    }
-  });
-
-  const subjectName = subject === 'cesky_jazyk' ? 'Český jazyk' : 'Matematika';
-  let prompt = `Vygeneruj ${count} typických testových otázek z předmětu ${subjectName} pro přípravu na jednotné přijímací zkoušky na střední školy v ČR (9. třída, formát Cermat).
-  
-  U uzavřených otázek (multiple_choice) uveď 4 možnosti (A, B, C, D). U otevřených otázek (open_ended) nech pole options prázdné. Odpověď musí být přesná hodnota nebo text správné možnosti.
-  
-  Vrať POUZE čisté pole JSON objektů.`;
-  
-  if (topic) {
-    prompt += `\nZaměř se specificky na téma: ${topic}.`;
-  }
-
   try {
-    console.log("📡 Odesílám požadavek na Google AI...");
-    // TADY BYLA CHYBA - voláme přímo model.generateContent
+    // 1. Správná inicializace klienta
+    const genAI = new GoogleGenAI(apiKey);
+    
+    // 2. Správné získání modelu (gemini-1.5-flash je nejstabilnější)
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: { responseMimeType: "application/json" }
+    });
+
+    const subjectName = subject === 'cesky_jazyk' ? 'Český jazyk' : 'Matematika';
+    const prompt = `Vygeneruj ${count} testových otázek pro přijímačky na SŠ z předmětu ${subjectName}. Vrať POUZE pole JSON.`;
+
+    console.log("📡 TEĎ odesílám požadavek do sítě...");
+    
+    // 3. OPRAVA: Voláme model.generateContent, ne ai.models...
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
-    console.log("✅ Odpověď z AI dorazila!");
     
-    const cleanJson = text.replace(/```json|```/g, "").trim();
-    const data = JSON.parse(cleanJson);
+    console.log("✅ AI odpověděla!");
 
-    return data.map((q: any, index: number) => ({
+    const cleanJson = text.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleanJson).map((q: any, index: number) => ({
       ...q,
       id: Math.random().toString(36).substring(7) + index,
       subject,
       topic
     }));
+
   } catch (e) {
-    console.error("❌ Chyba při generování:", e);
+    console.error("❌ CHYBA V KOMUNIKACI:", e);
     return [];
   }
 }
