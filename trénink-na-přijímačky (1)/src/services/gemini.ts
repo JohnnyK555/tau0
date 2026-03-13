@@ -1,7 +1,9 @@
-import { GoogleGenerativeAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
-// Tady používáme stabilní model, který v API 100% existuje
+// Vytvoření klienta pomocí správného názvu pro tvou knihovnu
+const genAI = new GoogleGenAI(import.meta.env.VITE_GEMINI_API_KEY);
+
+// Nastavení modelu
 const model = genAI.getGenerativeModel({ 
   model: "gemini-1.5-flash",
   generationConfig: {
@@ -33,7 +35,6 @@ export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', c
   }
 
   try {
-    // Tady byla ta hlavní chyba - voláme přímo model.generateContent
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const jsonStr = response.text().trim() || "[]";
