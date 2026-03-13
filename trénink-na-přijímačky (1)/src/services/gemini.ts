@@ -15,7 +15,7 @@ export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', c
   console.log("🚀 FUNKCE SPUŠTĚNA");
   
   // SEM VLOŽ SVŮJ KLÍČ MEZI UVOZOVKY
-  const apiKey = "SEM_VLOZ_TVUJ_API_KLIC_AIzaSy..."; 
+  const apiKey = "AIzaSyCdpTpxydrkfcLXV-MK8-P_SDc_-avMqBU"; 
   
   console.log("🔑 Používám klíč natvrdo vložený v kódu");
 
