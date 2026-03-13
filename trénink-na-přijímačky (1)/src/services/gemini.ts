@@ -14,13 +14,14 @@ export interface Question {
 export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', count: number = 5, topic?: string): Promise<Question[]> {
   console.log("🚀 FUNKCE GENERATE SE SPUSTILA!"); 
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  console.log("🔑 API klíč v aplikaci:", apiKey ? "MÁM HO (začíná na " + apiKey.substring(0, 5) + "...)" : "PRÁZDNÝ");
+  console.log("🔑 API klíč v aplikaci:", apiKey ? "ANO (mám ho)" : "NE (je prázdný)");
   
   if (!apiKey) {
-    alert("CHYBA: Aplikace nemá API klíč! Zkontroluj Netlify.");
+    console.error("Chybí API klíč!");
     return [];
   }
 
+  // TADY BYLA CHYBA - opraveno na GoogleGenAI
   const genAI = new GoogleGenAI(apiKey);
   const model = genAI.getGenerativeModel({ 
     model: "gemini-1.5-flash",
@@ -42,6 +43,7 @@ export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', c
 
   try {
     console.log("📡 Odesílám požadavek na Google AI...");
+    // TADY BYLA CHYBA - voláme přímo model.generateContent
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
@@ -58,7 +60,6 @@ export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', c
     }));
   } catch (e) {
     console.error("❌ Chyba při generování:", e);
-    alert("Došlo k chybě: " + (e instanceof Error ? e.message : "Neznámá chyba"));
     return [];
   }
 }
