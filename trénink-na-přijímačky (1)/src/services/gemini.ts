@@ -1,5 +1,17 @@
+import { GoogleGenAI } from "@google/genai";
+
+export interface Question {
+  id: string;
+  subject: 'cesky_jazyk' | 'matematika';
+  topic?: string;
+  text: string;
+  type: 'multiple_choice' | 'open_ended';
+  options: string[];
+  correctAnswer: string;
+  explanation: string;
+}
+
 export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', count: number = 5, topic?: string): Promise<Question[]> {
-  // --- TADY JSOU TY DEBUG HLÁŠKY ---
   console.log("🚀 FUNKCE GENERATE SE SPUSTILA!"); 
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   console.log("🔑 API klíč v aplikaci:", apiKey ? "MÁM HO (začíná na " + apiKey.substring(0, 5) + "...)" : "PRÁZDNÝ");
@@ -8,7 +20,6 @@ export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', c
     alert("CHYBA: Aplikace nemá API klíč! Zkontroluj Netlify.");
     return [];
   }
-  // ----------------------------------
 
   const genAI = new GoogleGenAI(apiKey);
   const model = genAI.getGenerativeModel({ 
@@ -50,4 +61,8 @@ export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', c
     alert("Došlo k chybě: " + (e instanceof Error ? e.message : "Neznámá chyba"));
     return [];
   }
+}
+
+export async function generateExam(subject: 'cesky_jazyk' | 'matematika'): Promise<Question[]> {
+  return generateQuestions(subject, 10);
 }
