@@ -1,7 +1,13 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenerativeAI, Type } from "@google/genai";
 
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // ZKUS TADY PŘEPSAT NÁZEV
+// Tady používáme stabilní model, který v API 100% existuje
+const model = genAI.getGenerativeModel({ 
+  model: "gemini-1.5-flash",
+  generationConfig: {
+    responseMimeType: "application/json",
+  }
+});
 
 export interface Question {
   id: string;
@@ -16,58 +22,22 @@ export interface Question {
 
 export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', count: number = 5, topic?: string): Promise<Question[]> {
   const subjectName = subject === 'cesky_jazyk' ? 'Český jazyk' : 'Matematika';
-  let prompt = `Vygeneruj ${count} typických testových otázek z předmětu ${subjectName} pro přípravu na jednotné přijímací zkoušky na střední školy v ČR (9. třída, formát Cermat).`;
+  let prompt = `Vygeneruj ${count} typických testových otázek z předmětu ${subjectName} pro přípravu na jednotné přijímací zkoušky na střední školy v ČR (9. třída, formát Cermat).
+  
+  U uzavřených otázek (multiple_choice) uveď 4 možnosti (A, B, C, D). U otevřených otázek (open_ended) nech pole options prázdné. Odpověď musí být přesná hodnota nebo text správné možnosti.
+  
+  Vrať POUZE čisté pole JSON objektů podle schématu.`;
   
   if (topic) {
     prompt += `\nZaměř se specificky na téma: ${topic}.`;
-  } else {
-    prompt += `\nOtázky by měly být různorodé (např. u češtiny: pravopis, skladba, porozumění textu, literatura; u matematiky: zlomky, rovnice, geometrie, slovní úlohy).`;
   }
 
-  prompt += `\nU uzavřených otázek (multiple_choice) uveď 4 možnosti (A, B, C, D). U otevřených otázek (open_ended) nech pole options prázdné. Odpověď musí být přesná hodnota nebo text správné možnosti.`;
-
-  const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            text: {
-              type: Type.STRING,
-              description: "Text otázky. Může obsahovat i výchozí text nebo zadání."
-            },
-            type: {
-              type: Type.STRING,
-              description: "Typ otázky: 'multiple_choice' nebo 'open_ended'"
-            },
-            options: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.STRING
-              },
-              description: "Možnosti odpovědí pro multiple_choice, jinak prázdné pole."
-            },
-            correctAnswer: {
-              type: Type.STRING,
-              description: "Správná odpověď (přesný text z možností nebo konkrétní hodnota/výsledek)."
-            },
-            explanation: {
-              type: Type.STRING,
-              description: "Vysvětlení správného řešení a postupu."
-            }
-          },
-          required: ["text", "type", "options", "correctAnswer", "explanation"]
-        }
-      }
-    }
-  });
-
-  const jsonStr = response.text?.trim() || "[]";
   try {
+    // Tady byla ta hlavní chyba - voláme přímo model.generateContent
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const jsonStr = response.text().trim() || "[]";
+    
     const data = JSON.parse(jsonStr);
     return data.map((q: any, index: number) => ({
       ...q,
@@ -76,14 +46,11 @@ export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', c
       topic
     }));
   } catch (e) {
-    console.error("Failed to parse questions", e);
+    console.error("Chyba při komunikaci s Gemini:", e);
     return [];
   }
 }
 
 export async function generateExam(subject: 'cesky_jazyk' | 'matematika'): Promise<Question[]> {
-  // Generujeme menší počet otázek pro ukázku, reálný test má např. 30 úloh, ale to by trvalo dlouho vygenerovat najednou.
-  // Pro účely aplikace vygenerujeme 10 různorodých otázek.
   return generateQuestions(subject, 10);
 }
-
