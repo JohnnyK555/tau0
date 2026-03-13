@@ -14,30 +14,29 @@ export interface Question {
 export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', count: number = 5, topic?: string): Promise<Question[]> {
   console.log("🚀 FUNKCE SPUŠTĚNA");
   
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  console.log("🔑 Klíč přítomen:", !!apiKey);
+  // SEM VLOŽ SVŮJ KLÍČ MEZI UVOZOVKY
+  const apiKey = "SEM_VLOZ_TVUJ_API_KLIC_AIzaSy..."; 
+  
+  console.log("🔑 Používám klíč natvrdo vložený v kódu");
 
-  if (!apiKey) {
-    console.error("❌ Kritická chyba: API klíč není v Netlify nastaven!");
+  if (!apiKey || apiKey.startsWith("SEM_VLOZ")) {
+    console.error("❌ Chyba: Zapomněl jsi do kódu vložit ten skutečný klíč!");
     return [];
   }
 
   try {
-    // 1. Správná inicializace klienta
     const genAI = new GoogleGenAI(apiKey);
     
-    // 2. Správné získání modelu (gemini-1.5-flash je nejstabilnější)
     const model = genAI.getGenerativeModel({ 
       model: "gemini-1.5-flash",
       generationConfig: { responseMimeType: "application/json" }
     });
 
     const subjectName = subject === 'cesky_jazyk' ? 'Český jazyk' : 'Matematika';
-    const prompt = `Vygeneruj ${count} testových otázek pro přijímačky na SŠ z předmětu ${subjectName}. Vrať POUZE pole JSON.`;
+    const prompt = `Vygeneruj ${count} testových otázek pro přijímačky na SŠ z předmětu ${subjectName}. Vrať POUZE pole JSON podle schématu Question.`;
 
-    console.log("📡 TEĎ odesílám požadavek do sítě...");
+    console.log("📡 TEĎ odesílám požadavek do sítě s hardcoded klíčem...");
     
-    // 3. OPRAVA: Voláme model.generateContent, ne ai.models...
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
@@ -54,6 +53,7 @@ export async function generateQuestions(subject: 'cesky_jazyk' | 'matematika', c
 
   } catch (e) {
     console.error("❌ CHYBA V KOMUNIKACI:", e);
+    // Pokud ti to napíše "API Key not valid", je v tom klíči překlep
     return [];
   }
 }
